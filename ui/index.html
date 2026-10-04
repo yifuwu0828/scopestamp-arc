@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ScopeStamp | Arc Invoice Scope Anchor &amp; USDC Receipt Verifier</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="prototype-banner" role="status" aria-label="System status">
+    <span class="badge-notice">Local prototype / not deployed</span>
+    <span class="banner-subtext">Client-side verification &amp; drafting harness. No wallet connection, no network addition, no automatic broadcast.</span>
+  </div>
+
+  <div class="page-container">
+    <header class="app-header">
+      <div class="brand">
+        <h1 class="brand-title">ScopeStamp</h1>
+        <p class="brand-subtitle">Freelancer invoice scope anchor and native USDC receipt verifier for Arc</p>
+      </div>
+    </header>
+
+    <main class="main-content">
+      <!-- Section 1: Create Invoice Draft -->
+      <section class="card" id="card-draft" aria-labelledby="heading-draft">
+        <div class="card-header">
+          <span class="step-num">1</span>
+          <div>
+            <h2 id="heading-draft" class="card-title">Create Invoice Draft</h2>
+            <p class="card-desc">Define scope and payment terms locally. Never transmits scope text.</p>
+          </div>
+        </div>
+
+        <form id="draft-form" class="form-grid" novalidate>
+          <div class="field-group">
+            <label for="recipient-input" class="field-label">Recipient Address</label>
+            <input 
+              id="recipient-input" 
+              name="recipient" 
+              type="text" 
+              class="text-input" 
+              placeholder="0x0000000000000000000000000000000000000000" 
+              spellcheck="false" 
+              required
+            >
+            <span class="field-hint">Arc account address intended to receive payment</span>
+          </div>
+
+          <div class="field-group">
+            <label for="amount-input" class="field-label">Amount in USDC</label>
+            <input 
+              id="amount-input" 
+              name="amount" 
+              type="text" 
+              class="text-input" 
+              placeholder="1500.00" 
+              required
+            >
+            <span class="field-hint">Plain string representation, maximum 18 decimals</span>
+          </div>
+
+          <div class="field-group">
+            <label for="nonce-input" class="field-label">Invoice Nonce / Reference</label>
+            <input 
+              id="nonce-input" 
+              name="nonce" 
+              type="text" 
+              class="text-input" 
+              value="invoice-001" 
+              placeholder="invoice-001" 
+              required
+            >
+            <span class="field-hint">Unique project identifier or sequencing nonce</span>
+          </div>
+
+          <div class="field-group full-width">
+            <label for="scope-input" class="field-label">Scope Description</label>
+            <textarea 
+              id="scope-input" 
+              name="scope" 
+              class="textarea-input" 
+              rows="4" 
+              placeholder="Specify milestone deliverables, acceptance criteria, dates, and terms..." 
+              required
+            ></textarea>
+            <span class="field-hint">Retained strictly on device; digest is calculated deterministically</span>
+          </div>
+
+          <div class="form-actions full-width">
+            <button id="btn-create-draft" type="submit" class="btn btn-primary">Create Draft</button>
+            <div id="draft-error" class="status-msg status-error hidden" role="alert"></div>
+          </div>
+        </form>
+
+        <div id="draft-output" class="output-panel hidden" aria-live="polite">
+          <div class="output-header">
+            <h3 class="output-title">Active Invoice Summary</h3>
+            <span class="badge-neutral" id="payment-status-badge">No money received (local draft only)</span>
+          </div>
+          
+          <dl class="meta-list">
+            <div class="meta-row">
+              <dt>Invoice ID:</dt>
+              <dd id="out-invoice-id" class="code-val">-</dd>
+            </div>
+            <div class="meta-row">
+              <dt>Canonical Scope Digest:</dt>
+              <dd id="out-scope-digest" class="code-val">-</dd>
+            </div>
+            <div class="meta-row">
+              <dt>Recipient:</dt>
+              <dd id="out-recipient" class="code-val">-</dd>
+            </div>
+            <div class="meta-row">
+              <dt>Amount:</dt>
+              <dd id="out-amount" class="num-val">-</dd>
+            </div>
+            <div class="meta-row">
+              <dt>Raw Units:</dt>
+              <dd id="out-amount-units" class="code-val">-</dd>
+            </div>
+          </dl>
+
+          <div class="panel-actions">
+            <button id="btn-copy-invoice" type="button" class="btn btn-secondary">Copy Invoice JSON</button>
+            <button id="btn-download-invoice" type="button" class="btn btn-secondary">Download Invoice JSON</button>
+            <span id="draft-action-feedback" class="action-feedback" aria-live="polite"></span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 2: Read-Only Verification -->
+      <section class="card" id="card-verify" aria-labelledby="heading-verify">
+        <div class="card-header">
+          <span class="step-num">2</span>
+          <div>
+            <h2 id="heading-verify" class="card-title">Read-Only Receipt Verification</h2>
+            <p class="card-desc">Query public Arc RPC for on-chain USDC settlement against current invoice.</p>
+          </div>
+        </div>
+
+        <div class="form-grid">
+          <div class="field-group">
+            <label for="network-select" class="field-label">Target Network</label>
+            <select id="network-select" class="select-input">
+              <option value="5042" data-rpc="https://rpc.mainnet.arc.io">Arc Mainnet (Chain ID 5042 - Production)</option>
+              <option value="5042002" data-rpc="https://rpc.testnet.arc.io">Arc Testnet (Chain ID 5042002 - Clearly Test Money Only)</option>
+            </select>
+            <span class="field-hint">Public read-only JSON-RPC endpoint</span>
+          </div>
+
+          <div class="field-group">
+            <label for="tx-hash-input" class="field-label">Transaction Hash</label>
+            <input 
+              id="tx-hash-input" 
+              type="text" 
+              class="text-input" 
+              placeholder="0x..." 
+              spellcheck="false"
+            >
+            <span class="field-hint">Public settlement transaction to check against this invoice</span>
+          </div>
+
+          <div class="privacy-callout full-width">
+            <strong>Data Boundary:</strong> Verification sends public transaction hashes, addresses and block queries to the selected RPC. If a registry is entered, its invoice digest is also queried. The scope text remains local; its digest can reveal guessed terms and is not encryption.
+          </div>
+
+          <div class="form-actions full-width">
+            <button id="btn-verify" type="button" class="btn btn-primary" disabled>Verify Receipt</button>
+            <span id="verify-lock-hint" class="field-hint inline-hint">Requires an active invoice draft above</span>
+          </div>
+        </div>
+
+        <div id="verify-panel" class="output-panel">
+          <div class="output-header">
+            <h3 class="output-title">Verification Outcome</h3>
+            <span id="verify-badge" class="badge-neutral">Awaiting Verification</span>
+          </div>
+          <div id="verify-output" class="result-text" aria-live="polite">Create a valid invoice draft and supply a transaction hash to verify receipt.</div>
+        </div>
+      </section>
+
+      <!-- Section 3: Prepare Scope Anchor -->
+      <section class="card" id="card-anchor" aria-labelledby="heading-anchor">
+        <div class="card-header">
+          <span class="step-num">3</span>
+          <div>
+            <h2 id="heading-anchor" class="card-title">Prepare Scope Anchor</h2>
+            <p class="card-desc">Construct an unsigned transaction payload to register the scope digest on-chain.</p>
+          </div>
+        </div>
+
+        <div class="form-grid">
+          <div class="field-group full-width">
+            <label for="registry-address-input" class="field-label">Registry Contract Address</label>
+            <input 
+              id="registry-address-input" 
+              type="text" 
+              class="text-input" 
+              placeholder="0x0000000000000000000000000000000000000000" 
+              spellcheck="false"
+            >
+            <span class="field-hint">Optional for receipt verification: the registry runtime must match this build. The recipient must anchor from their own account.</span>
+          </div>
+
+          <div class="info-callout full-width">
+            <strong>Protocol Notice:</strong> Mainnet anchoring requires an independently reviewed deployment, funding for network gas fees, and deliberate human wallet action outside this tool. No private keys are handled, and no automated transaction broadcast ("Send") exists.
+          </div>
+
+          <div class="form-actions full-width">
+            <button id="btn-build-anchor" type="button" class="btn btn-teal" disabled>Create Unsigned Anchor Transaction</button>
+          </div>
+        </div>
+
+        <div id="anchor-output-container" class="output-panel hidden" aria-live="polite">
+          <div class="output-header">
+            <h3 class="output-title">Unsigned Transaction Payload (Local Data Only)</h3>
+          </div>
+          <pre class="json-display"><code id="anchor-json-code"></code></pre>
+          <div class="panel-actions">
+            <button id="btn-copy-anchor" type="button" class="btn btn-secondary">Copy Unsigned JSON</button>
+            <button id="btn-download-anchor" type="button" class="btn btn-secondary">Download Unsigned JSON</button>
+            <span id="anchor-action-feedback" class="action-feedback" aria-live="polite"></span>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="app-footer">
+      <div class="footer-sources">
+        <h4>Official Developer References &amp; Sources</h4>
+        <ul>
+          <li><a href="https://docs.arc.io/arc/references/connect-to-arc" target="_blank" rel="noopener noreferrer">Arc Developer Connect Documentation</a></li>
+          <li><a href="https://community.arc.io/public/events/arc-microgrants-f8tijfjhyq" target="_blank" rel="noopener noreferrer">Arc Microgrant Event &amp; Grant Guidelines</a></li>
+          <li><span>Network Specs: Mainnet (ID 5042) | Testnet (ID 5042002)</span></li>
+        </ul>
+      </div>
+      <div class="footer-disclaimer">
+        ScopeStamp is an experimental client-side evaluation draft. It does not provide financial custody, warranty, automated contract deployment, or earnings guarantees.
+      </div>
+    </footer>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
